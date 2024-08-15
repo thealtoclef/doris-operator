@@ -1093,5 +1093,5 @@ BaseSpec <code>json:&quot;baseSpec,omitempty&quot;</code></p>
 <hr/>
 <p><em>
 Generated with <code>gen-crd-api-reference-docs</code>
-on git commit <code>51f0c78</code>.
+on git commit <code>0ad1f26</code>.
 </em></p>
