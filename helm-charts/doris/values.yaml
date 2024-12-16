@@ -15,6 +15,45 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# Auth Proxy for JDBC Catalog
+authProxy:
+  publicDB: false
+  autoIAMAuthn: false
+  resources:
+    limits:
+      cpu: 100m
+      memory: 256Mi
+    requests:
+      cpu: 10m
+      memory: 32Mi
+# Datasource for JDBC Catalog
+datasources: []
+# datasources:
+#   - name: cake-mysql-stage
+#     auth_proxy: cloud_sql
+#     instance_uri: bef-cake-sandbox:asia-southeast1:cake-mysql8-stage
+#   - name: cake-alloydb-stage
+#     auth_proxy: alloydb
+#     instance_uri: projects/bef-cake-sandbox/locations/asia-southeast1/clusters/cake-alloydb-stage-cluster/instances/cake-alloydb-stage
+
+# Doris Manager for the cluster
+dorisManager:
+  enabled: false
+  port: 9030
+  users: []
+  # users:
+  #   - username: test_user
+  #     password: test_password
+  #     grants:
+  #       - privileges:
+  #           [SELECT_PRIV, LOAD_PRIV, ALTER_PRIV, CREATE_PRIV, DROP_PRIV]
+  #         target: internal.*.*
+  #       - privileges: [USAGE_PRIV]
+  #         target: WORKLOAD GROUP 'normal'
+
+secretLabels: {}
+secretAnnotations: {}
+
 # deploy a doris cluster
 dorisCluster:
   # the name of doriscluster, if not set, the chart name will be used.
@@ -31,17 +70,15 @@ dorisCluster:
   # 1. Start dorisclusert without adminUser
   # 2. Run 'CREATE USER ...' or 'SET PASSWORD ...' in mysql client
   # 3. Add the name and password added in the previous step to adminUser and execute helm
+  # !DEPRECATED. Use authSecret instead
   adminUser: {}
   # name: root
   # password: "12345"
   # use authSecret can encrypt and save passwords, recommend this method
-  # 1. run shell:  echo -n '{your_password}' | base64    to get password base64 string
-  # 2. run shell:  echo -n '{your_user}' | base64        to get user base64 string
-  # 3. Fill the encrypted string into the corresponding position
-  # as follow, username is 'root' , password is 't0p-Secret'
+  # !This must be set for Doris Manager to work
   authSecret: {}
-  # username: cm9vdA==
-  # password: dDBwLVNlY3JldA==
+  # username: root
+  # password: t0p-Secret
 
 feSpec:
   replicas: 3
@@ -50,6 +87,8 @@ feSpec:
   # the pod labels for user select or classify pods.
   labels: {}
     # selectdb.app.classify: "classify-1"
+  annotations:
+    selectdb.com.doris/runmode: production
   image:
     repository: selectdb/doris.fe-ubuntu
     tag: 2.0.3
@@ -208,12 +247,17 @@ feSpec:
   systemInitialization: {}
     # initImage: "selectdb/alpine:latest"
     # command: [ "/sbin/sysctl", "-w", "vm.max_map_count=2000000" ]
+  initContainers: []
+    # - name: native-sidecar
+    #   image: alpine:latest
+    #   restartPolicy: Always
 
 beSpec:
   replicas: 3
   # the pod labels for user select or classify pods.
   labels: {}
     # selectdb.app.classify: "classify-1"
+  annotations: {}
   image:
     repository: selectdb/doris.be-ubuntu
     tag: 2.0.3
@@ -373,12 +417,17 @@ beSpec:
   systemInitialization: {}
     # initImage: "selectdb/alpine:latest"
     # command: [ "/sbin/sysctl", "-w", "vm.max_map_count=2000000" ]
+  initContainers: []
+    # - name: native-sidecar
+    #   image: alpine:latest
+    #   restartPolicy: Always
 
 cnSpec:
   replicas: 3
   # the pod labels for user select or classify pods.
   labels: {}
     # selectdb.app.classify: "classify-1"
+  annotations: {}
   image:
     repository: selectdb/doris.be-ubuntu
     tag: 2.0.3
@@ -539,6 +588,10 @@ cnSpec:
   systemInitialization: {}
     # initImage: "selectdb/alpine:latest"
     # command: [ "/sbin/sysctl", "-w", "vm.max_map_count=2000000" ]
+  initContainers: []
+    # - name: native-sidecar
+    #   image: alpine:latest
+    #   restartPolicy: Always
   # specific cn auto scale policy
   autoScalingPolicy:
     enable: true
@@ -560,6 +613,7 @@ brokerSpec:
   # the pod labels for user select or classify pods.
   labels: {}
     # selectdb.app.classify: "classify-1"
+  annotations: {}
   image:
     repository: selectdb/doris.broker-ubuntu
     tag: 2.0.3
@@ -693,5 +747,7 @@ brokerSpec:
   systemInitialization: {}
     # initImage: "selectdb/alpine:latest"
     # command: [ "/sbin/sysctl", "-w", "vm.max_map_count=2000000" ]
-
-
+  initContainers: []
+    # - name: native-sidecar
+    #   image: alpine:latest
+    #   restartPolicy: Always
