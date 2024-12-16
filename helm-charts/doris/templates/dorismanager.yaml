@@ -1,0 +1,34 @@
+{{- if and .Values.dorisManager.enabled .Values.dorisCluster.authSecret }}
+apiVersion: mysql.nakamasato.com/v1alpha1
+kind: MySQL
+metadata:
+  name: {{ template "doriscluster.name" . }}
+  namespace: {{ template "doriscluster.namespace" . }}
+spec:
+  host: {{ template "doriscluster.name" . }}-fe-service
+  port: {{ .Values.dorisManager.port }}
+  adminUser:
+    name: {{ template "doriscluster.name" . }}-admin-user
+    type: k8s
+  adminPassword:
+    name: {{ template "doriscluster.name" . }}-admin-password
+    type: k8s
+{{- range .Values.dorisManager.users }}
+---
+apiVersion: mysql.nakamasato.com/v1alpha1
+kind: MySQLUser
+metadata:
+  name: {{ .username | replace "_" "-" }}
+  namespace: {{ template "doriscluster.namespace" $ }}
+spec:
+  clusterName: {{ template "doriscluster.name" $ }}
+  username: {{ .username }}
+  secretRef:
+    name: {{ template "doriscluster.name" $ }}-user-credentials
+    key: {{ .username }}
+  {{- if .grants }}
+  grants:
+    {{- toYaml .grants | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}
