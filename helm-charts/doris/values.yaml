@@ -147,6 +147,9 @@ feSpec:
     #     copy_file2: |
     #       text *** content
 
+  podSecurityContext: {}
+  containerSecurityContext: {}
+
   # If configured separately here, it will overwrite the total resources configuration default.
   # but the default configuration of other types will still take effect.
   resource: {}
@@ -316,6 +319,9 @@ beSpec:
     #       text *** content
     #     copy_file2: |
     #       text *** content
+
+  podSecurityContext: {}
+  containerSecurityContext: {}
 
   # If configured separately here, it will overwrite the total resources configuration default.
   # but the default configuration of other types will still take effect.
@@ -488,6 +494,9 @@ cnSpec:
     #     copy_file2: |
     #       text *** content
 
+  podSecurityContext: {}
+  containerSecurityContext: {}
+
   # If configured separately here, it will overwrite the total resources configuration default.
   # but the default configuration of other types will still take effect.
   resource: {}
@@ -652,6 +661,9 @@ brokerSpec:
     #     copy_file2: |
     #       text *** content
 
+  podSecurityContext: {}
+  containerSecurityContext: {}
+  
   # If configured separately here, it will overwrite the total resources configuration default.
   # but the default configuration of other types will still take effect.
   resource: {}
