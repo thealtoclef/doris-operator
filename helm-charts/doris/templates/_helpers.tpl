@@ -265,3 +265,91 @@ doris cluster broker PVC
           mountPath: {{ .mountPath }}
     {{- end }}
 {{- end }}
+
+{{/* Determine if cloud_sql is present */}}
+{{- define "auth_proxy.has_cloud_sql" -}}
+{{- $has_cloud_sql := false -}}
+{{- range .Values.datasources -}}
+  {{- if and .auth_proxy (eq .auth_proxy "cloud_sql") -}}
+    {{- $has_cloud_sql = true -}}
+  {{- end -}}
+{{- end -}}
+{{- $has_cloud_sql -}}
+{{- end -}}
+
+{{/* Determine if alloydb is present */}}
+{{- define "auth_proxy.has_alloydb" -}}
+{{- $has_alloydb := false -}}
+{{- range .Values.datasources -}}
+  {{- if and .auth_proxy (eq .auth_proxy "alloydb") -}}
+    {{- $has_alloydb = true -}}
+  {{- end -}}
+{{- end -}}
+{{- $has_alloydb -}}
+{{- end -}}
+
+{{/* cloud-sql-auth-proxy configuration */}}
+{{- define "auth_proxy.cloud_sql" -}}
+- name: cloud-sql-auth-proxy
+  image: asia.gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
+  args:
+  {{- if eq .Values.authProxy.publicDB false }}
+    - --private-ip
+  {{- end }}
+  {{- if eq .Values.authProxy.autoIAMAuthn true }}
+    - --auto-iam-authn
+  {{- end }}
+  {{- range $index, $element := .Values.datasources }}
+    {{- if and .auth_proxy (eq .auth_proxy "cloud_sql") }}
+    - {{ .instance_uri -}}?port={{- 10000 | add $index | add1 }}
+    {{- end }}
+  {{- end }}
+  restartPolicy: Always
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    runAsUser: 65534
+    runAsGroup: 65534
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  {{ if .Values.authProxy.resources }}
+  resources:
+    {{- toYaml .Values.authProxy.resources | nindent 4 }}
+  {{- end }}
+{{- end -}}
+
+{{/* alloydb-auth-proxy configuration */}}
+{{- define "auth_proxy.alloydb" -}}
+- name: alloydb-auth-proxy
+  image: asia.gcr.io/alloydb-connectors/alloydb-auth-proxy:1
+  args:
+  {{- if eq .Values.authProxy.publicDB true }}
+    - --public-ip
+  {{- end }}
+  {{- if eq .Values.authProxy.autoIAMAuthn true }}
+    - --auto-iam-authn
+  {{- end }}
+  {{- range $index, $element := .Values.datasources }}
+    {{- if and .auth_proxy (eq .auth_proxy "alloydb") }}
+    - {{ .instance_uri -}}?port={{- 10000 | add $index | add1 }}
+    {{- end }}
+  {{- end }}
+  restartPolicy: Always
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    runAsUser: 65534
+    runAsGroup: 65534
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  {{ if .Values.authProxy.resources }}
+  resources:
+    {{- toYaml .Values.authProxy.resources | nindent 4 }}
+  {{- end }}
+{{- end -}}
