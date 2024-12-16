@@ -68,7 +68,7 @@ spec:
       #             values:
       #               - linux
       securityContext:
-        runAsNonRoot: true
+        {{- toYaml .Values.dorisOperator.podSecurityContext | nindent 8 }}
         # TODO(user): For common cases that do not require escalating privileges
         # it is recommended to ensure that all your Pods/Containers are restrictive.
         # More info: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
@@ -87,10 +87,7 @@ spec:
           {{- end }}
           name: dorisoperator
           securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - "ALL"
+            {{- toYaml .Values.dorisOperator.securityContext | nindent 12 }}
           env:
             - name: ENABLE_WEBHOOK
               value: "{{ template  "webhook.enable" . }}"
@@ -119,7 +116,11 @@ spec:
           # TODO(user): Configure the resources accordingly based on the project requirements.
           # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
           resources:
+          {{- if .Values.dorisOperator.resources -}}
+            {{- toYaml .Values.dorisOperator.resources | nindent 12 }}
+          {{- else -}}
             {{- include "operator.default.resource" . | indent 8 }}
+          {{- end -}}
           volumeMounts:
             - mountPath:  /tmp/k8s-webhook-server/serving-certs
               name: cert
