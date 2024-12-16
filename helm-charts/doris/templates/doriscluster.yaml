@@ -89,6 +89,16 @@ spec:
     {{- end }}
     {{- end }}
 
+    {{- if .Values.feSpec.podSecurityContext }}
+    securityContext:
+      {{- toYaml .Values.feSpec.podSecurityContext | nindent 6 }}
+    {{- end }}
+
+    {{- if .Values.feSpec.containerSecurityContext }}
+    containerSecurityContext:
+      {{- toYaml .Values.feSpec.containerSecurityContext | nindent 6 }}
+    {{- end }}
+
     {{- if .Values.feSpec.resource }}
     {{- toYaml .Values.feSpec.resource | nindent 4 }}
     {{- else }}
@@ -186,6 +196,16 @@ spec:
         {{- template "doriscluster.beConfig.configMaps" . }}
     {{- end }}
     {{- end }}
+
+    {{- if .Values.beSpec.podSecurityContext }}
+    securityContext:
+      {{- toYaml .Values.beSpec.podSecurityContext | nindent 6 }}
+    {{- end }}
+
+    {{- if .Values.beSpec.containerSecurityContext }}
+    containerSecurityContext:
+      {{- toYaml .Values.beSpec.containerSecurityContext | nindent 6 }}
+    {{- end }}    
 
     {{- if .Values.beSpec.resource }}
     {{- toYaml .Values.beSpec.resource | nindent 4 }}
@@ -287,6 +307,16 @@ spec:
     {{- end }}
     {{- end }}
 
+    {{- if .Values.cnSpec.podSecurityContext }}
+    securityContext:
+      {{- toYaml .Values.cnSpec.podSecurityContext | nindent 6 }}
+    {{- end }}
+
+    {{- if .Values.cnSpec.containerSecurityContext }}
+    containerSecurityContext:
+      {{- toYaml .Values.cnSpec.containerSecurityContext | nindent 6 }}
+    {{- end }}
+
     {{- if .Values.cnSpec.resource }}
     {{- toYaml .Values.cnSpec.resource | nindent 4 }}
     {{- else }}
@@ -379,6 +409,16 @@ spec:
       configMaps:
         {{- template "doriscluster.brokerConfig.configMaps" . }}
     {{- end }}
+    {{- end }}
+
+    {{- if .Values.brokerSpec.podSecurityContext }}
+    securityContext:
+      {{- toYaml .Values.brokerSpec.podSecurityContext | nindent 6 }}
+    {{- end }}
+
+    {{- if .Values.brokerSpec.containerSecurityContext }}
+    containerSecurityContext:
+      {{- toYaml .Values.brokerSpec.containerSecurityContext | nindent 6 }}
     {{- end }}
 
     {{- if .Values.brokerSpec.resource }}
