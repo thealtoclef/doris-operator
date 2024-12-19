@@ -395,9 +395,9 @@ func (dcgs *DisaggregatedComputeGroupsController) clearSvcs(ctx context.Context,
 }
 
 func (dcgs *DisaggregatedComputeGroupsController) clearCGInDorisMeta(ctx context.Context, cgNames []string, ddc *dv1.DorisDisaggregatedCluster) error {
-    if len(cgNames) == 0 {
-        return nil
-    }
+	if len(cgNames) == 0 {
+		return nil
+	}
 
 	sqlClient, err := dcgs.getMasterSqlClient(ctx, dcgs.K8sclient, ddc)
 	if err != nil {
@@ -506,10 +506,10 @@ func (dcgs *DisaggregatedComputeGroupsController) ClearStatefulsetUnusedPVCs(ctx
 	}
 
 	if cg != nil {
-        //we should use statefulset replicas for avoiding the phase=scaleDown, when phase `scaleDown` cg' replicas is less than statefuslet.
+		//we should use statefulset replicas for avoiding the phase=scaleDown, when phase `scaleDown` cg' replicas is less than statefuslet.
 		replicas := 0
 		stsName := ddc.GetCGStatefulsetName(cg)
-        sts, err := k8s.GetStatefulSet(ctx, dcgs.K8sclient, ddc.Namespace, stsName)
+		sts, err := k8s.GetStatefulSet(ctx, dcgs.K8sclient, ddc.Namespace, stsName)
 		if err != nil {
 			klog.Errorf("DisaggregatedComputeGroupsController ClearStatefulsetUnusedPVCs get statefulset namespace=%s, name=%s, failed, err=%s", ddc.Namespace, stsName, err.Error())
 			//waiting next reconciling.
