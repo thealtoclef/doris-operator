@@ -84,7 +84,7 @@ func (be *Controller) addFeAntiAffinity(tplSpec *corev1.PodTemplateSpec) {
 		preferedScheduleTerm)
 }
 
-//aff fe affinity for be, wish the fe and be will 1:1 deployed in same node.
+// aff fe affinity for be, wish the fe and be will 1:1 deployed in same node.
 func (be *Controller) addFeAffinity(tplSpec *corev1.PodTemplateSpec) {
 	pst := corev1.WeightedPodAffinityTerm{
 		// the weight of be antiAffinity with be is 20.
@@ -93,9 +93,9 @@ func (be *Controller) addFeAffinity(tplSpec *corev1.PodTemplateSpec) {
 			LabelSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
-						Key: v1.ComponentLabelKey,
+						Key:      v1.ComponentLabelKey,
 						Operator: metav1.LabelSelectorOpIn,
-						Values: []string{string(v1.Component_FE)},
+						Values:   []string{string(v1.Component_FE)},
 					},
 				},
 			},

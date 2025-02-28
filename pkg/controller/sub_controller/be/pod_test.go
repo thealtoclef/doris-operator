@@ -60,7 +60,6 @@ func Test_buildBEPodTemplateSpec(t *testing.T) {
 	be.buildBEPodTemplateSpec(dcr)
 }
 
-
 func Test_buildBEPodTemplateSpecWithFEAffinity(t *testing.T) {
 	dcrJsonStr := `{
     "apiVersion": "doris.selectdb.com/v1",
