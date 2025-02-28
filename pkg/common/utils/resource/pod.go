@@ -96,7 +96,7 @@ func NewPodTemplateSpec(dcr *v1.DorisCluster, componentType v1.ComponentType) co
 	var volumes []corev1.Volume
 	var si *v1.SystemInitialization
 	var dcrAffinity *corev1.Affinity
-	var defaultInitContainers []corev1.Container
+	var InitContainers []corev1.Container
 	var SecurityContext *corev1.PodSecurityContext
 	var skipInit bool
 	switch componentType {
@@ -105,21 +105,25 @@ func NewPodTemplateSpec(dcr *v1.DorisCluster, componentType v1.ComponentType) co
 		si = dcr.Spec.FeSpec.BaseSpec.SystemInitialization
 		dcrAffinity = dcr.Spec.FeSpec.BaseSpec.Affinity
 		SecurityContext = dcr.Spec.FeSpec.BaseSpec.SecurityContext
+		InitContainers = dcr.Spec.FeSpec.InitContainers
 	case v1.Component_BE:
 		volumes = newVolumesFromBaseSpec(dcr.Spec.BeSpec.BaseSpec)
 		si = dcr.Spec.BeSpec.BaseSpec.SystemInitialization
 		dcrAffinity = dcr.Spec.BeSpec.BaseSpec.Affinity
 		SecurityContext = dcr.Spec.BeSpec.BaseSpec.SecurityContext
 		skipInit = dcr.Spec.BeSpec.SkipDefaultSystemInit
+		InitContainers = dcr.Spec.BeSpec.InitContainers
 	case v1.Component_CN:
 		si = dcr.Spec.CnSpec.BaseSpec.SystemInitialization
 		dcrAffinity = dcr.Spec.CnSpec.BaseSpec.Affinity
 		SecurityContext = dcr.Spec.CnSpec.BaseSpec.SecurityContext
 		skipInit = dcr.Spec.CnSpec.SkipDefaultSystemInit
+		InitContainers = dcr.Spec.CnSpec.InitContainers
 	case v1.Component_Broker:
 		si = dcr.Spec.BrokerSpec.BaseSpec.SystemInitialization
 		dcrAffinity = dcr.Spec.BrokerSpec.BaseSpec.Affinity
 		SecurityContext = dcr.Spec.BrokerSpec.BaseSpec.SecurityContext
+		InitContainers = dcr.Spec.BrokerSpec.InitContainers
 	default:
 		klog.Errorf("NewPodTemplateSpec dorisClusterName %s, namespace %s componentType %s not supported.", dcr.Name, dcr.Namespace, componentType)
 	}
@@ -170,7 +174,7 @@ func NewPodTemplateSpec(dcr *v1.DorisCluster, componentType v1.ComponentType) co
 			Affinity:           spec.Affinity.DeepCopy(),
 			Tolerations:        spec.Tolerations,
 			HostAliases:        spec.HostAliases,
-			InitContainers:     defaultInitContainers,
+			InitContainers:     InitContainers,
 			SecurityContext:    SecurityContext,
 		},
 	}
