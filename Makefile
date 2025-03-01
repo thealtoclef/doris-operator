@@ -73,6 +73,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	$(CONTROLLER_GEN) rbac:roleName=manager-doris crd:generateEmbeddedObjectMeta=true webhook paths="./api/doris/..." output:crd:artifacts:config=config/crd/bases
 	$(CONTROLLER_GEN) rbac:roleName=manager-doris crd:generateEmbeddedObjectMeta=true webhook paths="./api/doris/..." output:crd:artifacts:config=helm-charts/doris-operator/crds
 	$(CONTROLLER_GEN) rbac:roleName=manager-doris crd:generateEmbeddedObjectMeta=true webhook paths="./api/disaggregated/..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=manager-doris crd:generateEmbeddedObjectMeta=true webhook paths="./api/disaggregated/..." output:crd:artifacts:config=helm-charts/doris-operator/crds
 	#cat config/crd/bases/apps.foundationdb.org_foundationdbclusters.yaml > config/crd/bases/crds.yaml
 	#cat config/crd/bases/apps.foundationdb.org_foundationdbbackups.yaml >> config/crd/bases/crds.yaml
 	#cat config/crd/bases/apps.foundationdb.org_foundationdbrestores.yaml >> config/crd/bases/crds.yaml
