@@ -44,3 +44,17 @@ dorisOperator:
   #             values:
   #               - target-host-name
   enableWebhook: false
+  podSecurityContext:
+    runAsNonRoot: true
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - "ALL"
+  resources: {}
+    # requests:
+    #   cpu: 1
+    #   memory: 2Gi
+    # limits:
+    #   cpu: 2
+    #   memory: 4Gi
