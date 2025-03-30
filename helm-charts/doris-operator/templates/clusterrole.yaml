@@ -181,6 +181,12 @@ rules:
     verbs:
       - update
   - apiGroups:
+      - disaggregated.cluster.doris.com
+    resources:
+      - dorisdisaggregatedclusters/status
+    verbs:
+      - update
+  - apiGroups:
       - doris.selectdb.com
     resources:
       - dorisclusters/status
