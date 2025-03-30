@@ -292,8 +292,6 @@ func (d *DisaggregatedSubDefaultController) GetManagementAdminUserAndPWD(ctx con
 
 }
 
-
-
 func (d *DisaggregatedSubDefaultController) BuildVolumesVolumeMountsAndPVCs(confMap map[string]interface{}, componentType v1.DisaggregatedComponentType, commonSpec *v1.CommonSpec) ([]corev1.Volume, []corev1.VolumeMount, []corev1.PersistentVolumeClaim) {
 	if commonSpec.PersistentVolume == nil && len(commonSpec.PersistentVolumes) == 0 {
 		vs, vms := d.getEmptyDirVolumesVolumeMounts(confMap, componentType)
@@ -362,7 +360,6 @@ func (d *DisaggregatedSubDefaultController) PersistentVolumeBuildVolumesVolumeMo
 	default:
 
 	}
-
 
 	var vs []corev1.Volume
 	var vms []corev1.VolumeMount
@@ -465,8 +462,8 @@ func (d *DisaggregatedSubDefaultController) PersistentVolumeArrayBuildVolumesVol
 	//generate pvc from the last path in requiredPaths, the mountPath that  configured by user is the highest wight, so first use the v1pv to generate pvc not template v1pv.
 	ss := set.NewSetString()
 
-	for i:= len(requiredPaths); i > 0; i-- {
-		path := requiredPaths[i -1]
+	for i := len(requiredPaths); i > 0; i-- {
+		path := requiredPaths[i-1]
 		//if the path have build volume, vm, pvc, skip it.
 		if ss.Find(path) {
 			continue
