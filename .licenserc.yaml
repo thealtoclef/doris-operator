@@ -1,0 +1,30 @@
+header:
+  license:
+    spdx-id: Apache-2.0
+    copyright-owner: Apache Software Foundation
+
+  paths-ignore:
+    - '.licenserc.yaml'
+    - '.gitignore'
+    - 'dist'
+    - 'go.mod'
+    - 'go.sum'
+    - 'licenses'
+    - 'api/**/zz_generated.deepcopy.go'
+    - 'config/crd/bases/*'
+    - '**/*.md'
+    - "**/*.json"
+    - "**/*.txt"
+    - '**/.helmignore'
+    - 'helm-charts/doris-operator/crds/doris.apache.com_dorisclusters.yaml'
+    - 'helm-charts/doris-operator/crds/disaggregated.cluster.doris.com_dorisdisaggregatedclusters.yaml'
+    - 'LICENSE'
+    - 'NOTICE'
+    - 'PROJECT'
+
+  comment: on-failure
+
+# If you don't want to check dependencies' license compatibility, remove the following part
+dependency:
+  files:
+    - go.mod
