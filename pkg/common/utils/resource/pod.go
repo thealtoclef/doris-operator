@@ -231,6 +231,7 @@ func NewContainerWithCommonSpec(cs *dv1.CommonSpec) corev1.Container {
 		SecurityContext: cs.ContainerSecurityContext,
 		Resources:       cs.ResourceRequirements,
 		VolumeMounts:    vms,
+		EnvFrom:         cs.EnvFrom,
 	}
 	return c
 }
