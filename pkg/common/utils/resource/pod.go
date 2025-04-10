@@ -54,13 +54,13 @@ const (
 	BROKER_PRESTOP             = "/opt/apache-doris/broker_prestop.sh"
 
 	//keys for pod env variables
-	POD_NAME      = "POD_NAME"
-	POD_IP        = "POD_IP"
-	HOST_IP       = "HOST_IP"
-	POD_NAMESPACE = "POD_NAMESPACE"
-	ADMIN_USER    = "USER"
-	ADMIN_PASSWD  = "PASSWD"
-	DORIS_ROOT_KEY    = "DORIS_ROOT"
+	POD_NAME       = "POD_NAME"
+	POD_IP         = "POD_IP"
+	HOST_IP        = "HOST_IP"
+	POD_NAMESPACE  = "POD_NAMESPACE"
+	ADMIN_USER     = "USER"
+	ADMIN_PASSWD   = "PASSWD"
+	DORIS_ROOT_KEY = "DORIS_ROOT"
 
 	KRB5_MOUNT_PATH        = "KRB5_MOUNT_PATH"
 	KRB5_CONFIG            = "KRB5_CONFIG"
