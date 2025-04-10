@@ -294,6 +294,7 @@ func NewContainerWithCommonSpec(cs *dv1.CommonSpec) corev1.Container {
 		SecurityContext: cs.ContainerSecurityContext,
 		Resources:       cs.ResourceRequirements,
 		VolumeMounts:    vms,
+		EnvFrom:         cs.EnvFrom,
 	}
 	return c
 }
@@ -563,6 +564,7 @@ func NewBaseMainContainer(dcr *v1.DorisCluster, config map[string]interface{}, c
 		Args:            args,
 		Ports:           []corev1.ContainerPort{},
 		Env:             envs,
+		EnvFrom:         spec.EnvFrom,
 		VolumeMounts:    volumeMounts,
 		ImagePullPolicy: imagePullPolicy,
 		Resources:       spec.ResourceRequirements,
