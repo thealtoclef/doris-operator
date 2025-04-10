@@ -197,6 +197,9 @@ type SystemInitialization struct {
 
 	// Arguments to the entrypoint.
 	Args []string `json:"args,omitempty"`
+
+	//defines the specification of resource cpu and mem. ep: {"requests":{"cpu": 4, "memory": "8Gi"},"limits":{"cpu":4,"memory":"8Gi"}}
+	corev1.ResourceRequirements `json:",inline"`
 }
 
 // PersistentVolume defines volume information and container mount information.

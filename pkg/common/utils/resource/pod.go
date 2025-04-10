@@ -278,6 +278,7 @@ func constructDisaggregatedInitContainers(componentType dv1.DisaggregatedCompone
 			SecurityContext: &corev1.SecurityContext{
 				Privileged: &enablePrivileged,
 			},
+			Resources: si.ResourceRequirements,
 		}
 		si.InitImage = initImage
 		defaultInitContains = append(defaultInitContains, initContainer)
@@ -369,6 +370,7 @@ func newBaseInitContainer(name string, si *v1.SystemInitialization) corev1.Conta
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: &enablePrivileged,
 		},
+		Resources: si.ResourceRequirements,
 	}
 	return c
 }
