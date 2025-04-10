@@ -209,6 +209,10 @@ type CommonSpec struct {
 	// Multi Secret for pod.
 	// +optional
 	Secrets []Secret `json:"secrets,omitempty"`
+
+	// InitContainers is a list of containers that should be run before the app containers are started.
+	// +optional
+	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 }
 
 type SystemInitialization struct {
