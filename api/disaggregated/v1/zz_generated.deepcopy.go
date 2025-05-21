@@ -149,6 +149,13 @@ func (in *CommonSpec) DeepCopyInto(out *CommonSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.EnvFrom != nil {
+		in, out := &in.EnvFrom, &out.EnvFrom
+		*out = make([]corev1.EnvFromSource, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.SystemInitialization != nil {
 		in, out := &in.SystemInitialization, &out.SystemInitialization
 		*out = new(SystemInitialization)
@@ -158,6 +165,13 @@ func (in *CommonSpec) DeepCopyInto(out *CommonSpec) {
 		in, out := &in.Secrets, &out.Secrets
 		*out = make([]Secret, len(*in))
 		copy(*out, *in)
+	}
+	if in.InitContainers != nil {
+		in, out := &in.InitContainers, &out.InitContainers
+		*out = make([]corev1.Container, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 }
 
