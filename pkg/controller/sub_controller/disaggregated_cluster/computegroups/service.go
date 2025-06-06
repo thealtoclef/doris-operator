@@ -37,6 +37,7 @@ func (dcgs *DisaggregatedComputeGroupsController) newService(ddc *dv1.DorisDisag
 	spec := &svc.Spec
 	spec.Selector = dcgs.newCGPodsSelector(ddc.Name, uniqueId)
 	spec.Ports = sps
+	spec.ClusterIP = "None"
 
 	if svcConf != nil && svcConf.Type != "" {
 		svc.Spec.Type = svcConf.Type
