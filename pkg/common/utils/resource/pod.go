@@ -1119,7 +1119,7 @@ func getExecProbe(commands []string) corev1.ProbeHandler {
 	}
 }
 
-func BuildDisaggregatedProbe(container *corev1.Container, cs *dv1.CommonSpec, componentType dv1.DisaggregatedComponentType) {
+func BuildDisaggregatedProbe(container *corev1.Container, cs *dv1.CommonSpec, componentType dv1.DisaggregatedComponentType, cvs map[string]interface{}) {
 	var failurethreshold int32
 	startTimeout := int32(300)
 	liveTimeout := cs.LiveTimeout
@@ -1155,6 +1155,27 @@ func BuildDisaggregatedProbe(container *corev1.Container, cs *dv1.CommonSpec, co
 		Exec: &corev1.ExecAction{
 			Command: []string{commend, DISAGGREGATED_LIVE_PARAM_READY},
 		},
+	}
+
+	// Add HTTP health check for BE nodes
+	if componentType == dv1.DisaggregatedBE {
+		// Create a combined command that runs both script and HTTP check
+		aliveCommand := alive.Exec.Command
+		readyCommand := ready.Exec.Command
+
+		// Get webserver port
+		webserverPort := GetPort(cvs, WEBSERVER_PORT)
+
+		// Wrap the existing commands with additional HTTP check
+		alive.Exec.Command = []string{
+			"sh", "-c",
+			aliveCommand[0] + " " + aliveCommand[1] + " && curl -f http://localhost:" + strconv.Itoa(int(webserverPort)) + HEALTH_API_PATH,
+		}
+
+		ready.Exec.Command = []string{
+			"sh", "-c",
+			readyCommand[0] + " " + readyCommand[1] + " && curl -f http://localhost:" + strconv.Itoa(int(webserverPort)) + HEALTH_API_PATH,
+		}
 	}
 
 	container.LivenessProbe = &corev1.Probe{

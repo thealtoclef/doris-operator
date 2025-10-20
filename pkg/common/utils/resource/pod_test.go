@@ -150,7 +150,7 @@ func Test_BuildDisaggregatedProbe(t *testing.T) {
 		StartTimeout: 600,
 		LiveTimeout:  30,
 	}
-	BuildDisaggregatedProbe(c, cs, dv1.DisaggregatedBE)
+	BuildDisaggregatedProbe(c, cs, dv1.DisaggregatedBE, make(map[string]interface{}))
 	if c.StartupProbe == nil {
 		t.Errorf("startupProbe not build")
 	}
