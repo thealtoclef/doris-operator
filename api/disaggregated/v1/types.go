@@ -104,7 +104,7 @@ type FeSpec struct {
 
 // ComputeGroup describe the specification that a group of compute node.
 type ComputeGroup struct {
-	//the unique identifier of compute group, first register in fe will use UniqueId as cluster name.
+	//the unique identifier of compute group, first register in fe will use UniqueId as compute group name.
 	UniqueId string `json:"uniqueId"`
 
 	// EnableWorkloadGroup is a switch that determines whether the doris cluster enables the workload group.
@@ -396,8 +396,11 @@ type ComputeGroupStatus struct {
 	// the service that can access the compute group pods.
 	ServiceName string `json:"serviceName,omitempty"`
 
-	//
+	//the unique id of compute group in kubernetes, this field is part of compute group statefulset.
 	UniqueId string `json:"uniqueId,omitempty"`
+
+	//the compute group id in doris meta, this response to the backend's tag "compute_group_id";
+	ComputeGroupId string `json:"computeGroupId,omitempty"`
 
 	//AvailableStatus represents the compute group available or not.
 	AvailableStatus AvailableStatus `json:"availableStatus,omitempty"`

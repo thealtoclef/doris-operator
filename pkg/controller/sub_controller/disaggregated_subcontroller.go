@@ -22,9 +22,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+	"strconv"
+	"strings"
+
 	"github.com/apache/doris-operator/api/disaggregated/v1"
 	"github.com/apache/doris-operator/pkg/common/utils/k8s"
 	"github.com/apache/doris-operator/pkg/common/utils/metadata"
+	"github.com/apache/doris-operator/pkg/common/utils/mysql"
 	"github.com/apache/doris-operator/pkg/common/utils/resource"
 	"github.com/apache/doris-operator/pkg/common/utils/set"
 	"github.com/spf13/viper"
@@ -34,10 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
-	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -57,7 +61,6 @@ const (
 	FileCachePathKey                     = "file_cache_path"
 	FileCacheSubConfigPathKey            = "path"
 	FileCacheSubConfigTotalSizeKey       = "total_size"
-
 )
 
 type DisaggregatedSubController interface {
@@ -605,6 +608,19 @@ func (d *DisaggregatedSubDefaultController) getEmptyDirVolumesVolumeMounts(confM
 	}
 }
 
+// this function is a compensation, because the DownwardAPI annotations and labels are not mount in pod, so this function amends。
+func(d *DisaggregatedSubDefaultController) AddDownwardAPI(st *appv1.StatefulSet) {
+	t := &st.Spec.Template
+	for index, _ := range t.Spec.Containers {
+		if t.Spec.Containers[index].Name == resource.DISAGGREGATED_FE_MAIN_CONTAINER_NAME || t.Spec.Containers[index].Name == resource.DISAGGREGATED_BE_MAIN_CONTAINER_NAME ||
+			t.Spec.Containers[index].Name == resource.DISAGGREGATED_MS_MAIN_CONTAINER_NAME {
+			_, d_v_m := resource.GetPodInfoVolumesVolumeMounts()
+			t.Spec.Containers[index].VolumeMounts = append(t.Spec.Containers[index].VolumeMounts, d_v_m...)
+			break
+		}
+	}
+}
+
 func (d *DisaggregatedSubDefaultController) getBEEmptyDirVolumesVolumeMounts(confMap map[string]interface{}) ([]corev1.Volume, []corev1.VolumeMount) {
 	vs := []corev1.Volume{
 		{
@@ -755,4 +771,35 @@ func (d *DisaggregatedSubDefaultController) getFEMetaPath(confMap map[string]int
 		return resource.DEFAULT_ROOT_PATH + "/fe/doris-meta"
 	}
 	return v.(string)
+}
+
+func (d *DisaggregatedSubDefaultController) FindSecretTLSConfig(feConfMap map[string]interface{}, ddc *v1.DorisDisaggregatedCluster) (*mysql.TLSConfig, string /*secret name*/) {
+	enableTLS := resource.GetString(feConfMap, resource.ENABLE_TLS_KEY)
+	if enableTLS == "" {
+		return nil, ""
+	}
+
+	caCertFile := resource.GetString(feConfMap, resource.TLS_CA_CERTIFICATE_PATH_KEY)
+	clientCertFile := resource.GetString(feConfMap, resource.TLS_CERTIFICATE_PATH_KEY)
+	clientKeyFile := resource.GetString(feConfMap, resource.TLS_PRIVATE_KEY_PATH_KEY)
+	caFileName := path.Base(caCertFile)
+	clientCertFileName := path.Base(clientCertFile)
+	clientKeyFileName := path.Base(clientKeyFile)
+
+	caCertDir := filepath.Dir(caCertFile)
+	secretName := ""
+	for _, sn := range ddc.Spec.FeSpec.Secrets {
+		if sn.MountPath == caCertDir {
+			secretName = sn.SecretName
+			break
+		}
+	}
+
+	tlsConfig := &mysql.TLSConfig{
+		CAFileName:         caFileName,
+		ClientCertFileName: clientCertFileName,
+		ClientKeyFileName:  clientKeyFileName,
+	}
+
+	return tlsConfig, secretName
 }

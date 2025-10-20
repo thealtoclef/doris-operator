@@ -19,7 +19,8 @@ package metaservice
 
 import (
 	"context"
-	"github.com/apache/doris-operator/api/disaggregated/v1"
+
+	v1 "github.com/apache/doris-operator/api/disaggregated/v1"
 	"github.com/apache/doris-operator/pkg/common/utils/k8s"
 	"github.com/apache/doris-operator/pkg/common/utils/metadata"
 	"github.com/apache/doris-operator/pkg/common/utils/resource"
@@ -59,19 +60,7 @@ func (dms *DisaggregatedMSController) newStatefulset(ddc *v1.DorisDisaggregatedC
 
 	msSpec := ddc.Spec.MetaService
 	matchLabels := dms.newMSPodsSelector(ddc.Name)
-	var volumeClaimTemplates []corev1.PersistentVolumeClaim
-	cpv := msSpec.PersistentVolume
-	if cpv != nil {
-		pvc := corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        defaultLogPrefixName,
-				Annotations: resource.NewAnnotations(),
-			},
-			Spec: cpv.PersistentVolumeClaimSpec,
-		}
-		volumeClaimTemplates = append(volumeClaimTemplates, pvc)
-	}
-
+	_, _, vcts := dms.BuildVolumesVolumeMountsAndPVCs(confMap, v1.DisaggregatedMS, &msSpec.CommonSpec)
 	replicas := metadata.GetInt32Pointer(v1.DefaultMetaserviceNumber)
 	if msSpec.Replicas != nil {
 		replicas = msSpec.Replicas
@@ -84,7 +73,7 @@ func (dms *DisaggregatedMSController) newStatefulset(ddc *v1.DorisDisaggregatedC
 		}
 		st.Spec.Template = dms.NewPodTemplateSpec(ddc, matchLabels, confMap)
 		st.Spec.ServiceName = ddc.GetMSServiceName()
-		st.Spec.VolumeClaimTemplates = volumeClaimTemplates
+		st.Spec.VolumeClaimTemplates = vcts
 	}()
 
 	return st
@@ -122,7 +111,8 @@ func (dms *DisaggregatedMSController) NewMSContainer(ddc *v1.DorisDisaggregatedC
 	cmd, args := sc.GetDisaggregatedCommand(v1.DisaggregatedMS)
 	c.Command = cmd
 	c.Args = args
-	c.Name = "metaservice"
+	//c.Name = "metaservice"
+	c.Name = resource.DISAGGREGATED_MS_MAIN_CONTAINER_NAME
 
 	c.Ports = resource.GetDisaggregatedContainerPorts(cvs, v1.DisaggregatedMS)
 	c.Env = ddc.Spec.MetaService.CommonSpec.EnvVars

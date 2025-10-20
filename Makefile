@@ -111,8 +111,10 @@ else
 endif
 
 .PHONY: build
-build: manifests generate fmt vet helm ## Build manager binary.
+build: manifests generate vet helm ## Build manager binary.
 	go build -ldflags=$(LDFLAGS) -o bin/dorisoperator cmd/operator/main.go
+	go build -ldflags=$(LDFLAGS) -o bin/dorisctl cmd/dorisctl/main.go
+	go build -o bin/doris-debug cmd/doris-debug/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

@@ -290,7 +290,7 @@ func (d *SubDefaultController) CheckSharedPVC(ctx context.Context, dcr *dorisv1.
 	for _, claim := range dcr.Spec.SharedPersistentVolumeClaims {
 		pvc, err := k8s.GetPVC(ctx, d.K8sclient, claim.PersistentVolumeClaimName, dcr.Namespace)
 		if err != nil || pvc == nil {
-			errMessage := fmt.Sprintf("(PersistentVolumeClaim get failed name: %s, namespace: %s, err: %s), ", claim.PersistentVolumeClaimName, dcr.Namespace, err.Error())
+			errMessage := fmt.Sprintf("(PersistentVolumeClaim get failed name: %s, namespace: %s, err: %#v), ", claim.PersistentVolumeClaimName, dcr.Namespace, err)
 			klog.Errorf(errMessage)
 			d.K8srecorder.Event(dcr, string(EventWarning), string(CheckSharePVC), errMessage)
 			return
@@ -358,7 +358,10 @@ func (d *SubDefaultController) RestrictConditionsEqual(nst *appv1.StatefulSet, e
 	//shield persistent volume update when the pvcProvider=Operator
 	//in webhook should intercept the volume spec updated when use statefulset pvc.
 	// TODO: updates to statefulset spec for fields other than 'replicas', 'template', 'updateStrategy', 'persistentVolumeClaimRetentionPolicy' and 'minReadySeconds' are forbidden
-	nst.Spec.VolumeClaimTemplates = est.Spec.VolumeClaimTemplates
+	//if create est vct is empty, should not assign to new st.
+	if len(est.Spec.VolumeClaimTemplates) !=0 {
+		nst.Spec.VolumeClaimTemplates = est.Spec.VolumeClaimTemplates
+	}
 }
 
 // PrepareReconcileResources prepare resource for reconcile
@@ -552,7 +555,7 @@ func (d *SubDefaultController) listAndDeletePersistentVolumeClaim(ctx context.Co
 
 	dorisPersistentVolumes, err := d.GetFinalPersistentVolumes(ctx, dcr, componentType)
 	if err != nil {
-		d.K8srecorder.Event(dcr, string(EventWarning), PVCExplainFailed, fmt.Sprintf("listAndDeletePersistentVolumeClaim %s GetFinalPersistentVolumes failed：%s", componentType, err.Error()))
+		d.K8srecorder.Event(dcr, string(EventWarning), PVCExplainFailed, fmt.Sprintf("listAndDeletePersistentVolumeClaim %s GetFinalPersistentVolumes failed: %s", componentType, err.Error()))
 		return err
 	}
 
