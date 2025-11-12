@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
@@ -95,6 +96,15 @@ func NewDorisSqlDB(cfg DBConfig, tlsConfig *TLSConfig, secret *corev1.Secret) (*
 		return nil, err
 	}
 
+	// Configure connection pooling to prevent connection exhaustion
+	db.SetMaxOpenConns(10)                  // Maximum number of open connections
+	db.SetMaxIdleConns(5)                   // Maximum number of idle connections
+	db.SetConnMaxLifetime(5 * time.Minute)  // Maximum lifetime of a connection
+
+	// Enable unsafe mode to allow missing struct fields for backward compatibility
+	// This allows the operator to work with both older and newer Doris versions
+	db = db.Unsafe()
+
 	if err = db.Ping(); err != nil {
 		klog.Errorf("NewDorisSqlDB sqlx.Open.Ping failed ping doris sql client connection, err: %s \n", err.Error())
 		return nil, err
@@ -108,6 +118,13 @@ func NewDorisMasterSqlDB(dbConf DBConfig, tlsConfig *TLSConfig, secret *corev1.S
 		klog.Errorf("NewDorisMasterSqlDB failed, get fe node connection err:%s", err.Error())
 		return nil, err
 	}
+	// Ensure loadBalanceDBClient is always closed if we don't return it
+	defer func() {
+		if loadBalanceDBClient != nil {
+			loadBalanceDBClient.Close()
+		}
+	}()
+	
 	master, _, err := loadBalanceDBClient.GetFollowers()
 	if err != nil {
 		klog.Errorf("NewDorisMasterSqlDB GetFollowers master failed, err:%s", err.Error())
@@ -116,9 +133,9 @@ func NewDorisMasterSqlDB(dbConf DBConfig, tlsConfig *TLSConfig, secret *corev1.S
 	var masterDBClient *DB
 	if master.CurrentConnected == "Yes" {
 		masterDBClient = loadBalanceDBClient
+		// Set to nil so defer doesn't close it
+		loadBalanceDBClient = nil
 	} else {
-		// loadBalanceDBClient should be closed
-		defer loadBalanceDBClient.Close()
 		// Get the connection to the master
 		masterDBClient, err = NewDorisSqlDB(DBConfig{
 			User:     dbConf.User,
@@ -131,6 +148,7 @@ func NewDorisMasterSqlDB(dbConf DBConfig, tlsConfig *TLSConfig, secret *corev1.S
 			klog.Errorf("NewDorisMasterSqlDB failed, get fe master connection  err:%s", err.Error())
 			return nil, err
 		}
+		// loadBalanceDBClient will be closed by defer
 	}
 	return masterDBClient, nil
 }
