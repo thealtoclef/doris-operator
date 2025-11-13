@@ -89,6 +89,10 @@ const (
 	DISAGGREGATED_LIVE_PARAM_ALIVE = "alive"
 	DISAGGREGATED_LIVE_PARAM_READY = "ready"
 
+	// Liveness check command templates with metrics endpoint validation
+	DISAGGREGATED_FE_LIVENESS_CHECK_CMD = `%s %s && PORT=$(grep "^http_port" /opt/apache-doris/fe/conf/fe.conf | cut -d'=' -f2 | tr -d ' ') && curl -f -s --max-time 3 http://localhost:${PORT:-8030}/metrics > /dev/null`
+	DISAGGREGATED_BE_LIVENESS_CHECK_CMD = `%s %s && PORT=$(grep "^webserver_port" /opt/apache-doris/be/conf/be.conf | cut -d'=' -f2 | tr -d ' ') && curl -f -s --max-time 3 http://localhost:${PORT:-8040}/metrics > /dev/null`
+
 	POD_CONTROLLER_REVISION_HASH_KEY = "controller-revision-hash"
 
 	DISAGGREGATED_FE_MAIN_CONTAINER_NAME = "fe"
@@ -1272,32 +1276,64 @@ func BuildDisaggregatedProbe(container *corev1.Container, cs *dv1.CommonSpec, co
 	default:
 	}
 
-	// check running status
-	alive := corev1.ProbeHandler{
+	// Startup probe
+	startup := corev1.ProbeHandler{
 		Exec: &corev1.ExecAction{
 			Command: []string{commend, DISAGGREGATED_LIVE_PARAM_ALIVE},
 		},
 	}
 
-	// check ready status
+	// Liveness probe
+	var liveness corev1.ProbeHandler
+	switch componentType {
+	case dv1.DisaggregatedFE:
+		// FE: script check + metrics on http_port (default 8030)
+		liveness = corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{
+					"/bin/sh", "-c",
+					fmt.Sprintf(DISAGGREGATED_FE_LIVENESS_CHECK_CMD, commend, DISAGGREGATED_LIVE_PARAM_ALIVE),
+				},
+			},
+		}
+	case dv1.DisaggregatedBE:
+		// BE: script check + metrics on webserver_port (default 8040)
+		liveness = corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{
+					"/bin/sh", "-c",
+					fmt.Sprintf(DISAGGREGATED_BE_LIVENESS_CHECK_CMD, commend, DISAGGREGATED_LIVE_PARAM_ALIVE),
+				},
+			},
+		}
+	default:
+		liveness = corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{commend, DISAGGREGATED_LIVE_PARAM_ALIVE},
+			},
+		}
+	}
+
+	// Readiness probe
 	ready := corev1.ProbeHandler{
 		Exec: &corev1.ExecAction{
 			Command: []string{commend, DISAGGREGATED_LIVE_PARAM_READY},
 		},
 	}
 
+	// Assign probes
 	container.LivenessProbe = &corev1.Probe{
 		PeriodSeconds:       5,
 		FailureThreshold:    3,
 		InitialDelaySeconds: 80,
 		TimeoutSeconds:      liveTimeout,
-		ProbeHandler:        alive,
+		ProbeHandler:        liveness,
 	}
 
 	container.StartupProbe = &corev1.Probe{
 		FailureThreshold: failurethreshold,
 		PeriodSeconds:    5,
-		ProbeHandler:     alive,
+		ProbeHandler:     startup,
 	}
 
 	container.ReadinessProbe = &corev1.Probe{
