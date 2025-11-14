@@ -27,8 +27,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/apache/doris-operator/api/disaggregated/v1"
+	v1 "github.com/apache/doris-operator/api/disaggregated/v1"
 	"github.com/apache/doris-operator/pkg/common/utils/k8s"
 	"github.com/apache/doris-operator/pkg/common/utils/metadata"
 	"github.com/apache/doris-operator/pkg/common/utils/mysql"
@@ -37,6 +38,7 @@ import (
 	"github.com/spf13/viper"
 	appv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -81,6 +83,125 @@ type DisaggregatedSubDefaultController struct {
 	K8srecorder    record.EventRecorder
 	ControllerName string
 }
+
+// PreparePersistentVolumeClaims manages PVCs for StatefulSet volumeClaimTemplates
+// This method only handles PVCs that are defined in the StatefulSet's volumeClaimTemplates.
+// It does NOT handle volumes that go directly to the pod template (those are handled by volume building logic).
+// The StatefulSet must be built first so we know which volumes are PVC-based vs pod template-based.
+func (d *DisaggregatedSubDefaultController) PreparePersistentVolumeClaims(ctx context.Context, cluster client.Object, component string, statefulSet *appv1.StatefulSet, selector map[string]string, replicas int32) bool {
+	// List existing PVCs
+	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	pvcList := corev1.PersistentVolumeClaimList{}
+	if err := d.K8sclient.List(listCtx, &pvcList, client.InNamespace(cluster.GetNamespace()), client.MatchingLabels(selector)); err != nil {
+		klog.Errorf("%s preparePersistentVolumeClaims: list PVCs failed: %v", component, err)
+		d.K8srecorder.Event(cluster, string(EventWarning), string(PVCListFailed), "list "+component+" PVCs failed: "+err.Error())
+		return false
+	}
+
+	// Extract volume names from StatefulSet's volumeClaimTemplates
+	// This ensures we use the exact same naming logic as the StatefulSet
+	volumeNames := make([]string, 0, len(statefulSet.Spec.VolumeClaimTemplates))
+	volumeSpecs := make(map[string]corev1.PersistentVolumeClaimSpec)
+
+	for _, vct := range statefulSet.Spec.VolumeClaimTemplates {
+		volumeNames = append(volumeNames, vct.Name)
+		volumeSpecs[vct.Name] = vct.Spec
+	}
+
+	// Group PVCs by volume name from StatefulSet volumeClaimTemplates
+	pvcMap := make(map[string][]corev1.PersistentVolumeClaim)
+	for _, pvc := range pvcList.Items {
+		// Check if PVC matches any of the StatefulSet's volume claim template names
+		for _, volumeName := range volumeNames {
+			if strings.HasPrefix(pvc.Name, volumeName+"-") {
+				pvcMap[volumeName] = append(pvcMap[volumeName], pvc)
+				break
+			}
+		}
+	}
+
+	// Prepare PVCs for each volume claim template in the StatefulSet
+	prepared := true
+	for _, volumeName := range volumeNames {
+		volumeSpec, exists := volumeSpecs[volumeName]
+		if !exists {
+			klog.Errorf("%s preparePersistentVolumeClaims: volume claim template %s not found in StatefulSet", component, volumeName)
+			prepared = false
+			continue
+		}
+
+		// Create a synthetic PersistentVolume for the patchPVCs method
+		// This ensures compatibility with the existing logic
+		pv := v1.PersistentVolume{
+			PersistentVolumeClaimSpec: volumeSpec,
+			// MountPaths can be empty since we're deriving names from StatefulSet
+		}
+
+		if !d.patchPVCs(ctx, cluster, component, selector, pvcMap[volumeName], statefulSet.Name, volumeName, pv, replicas) {
+			prepared = false
+		}
+	}
+
+	return prepared
+}
+
+// patchPVCs manages PVCs for a specific StatefulSet volumeClaimTemplate
+// This handles resizing existing PVCs and creating missing PVCs for replicas
+// Only called for volumes that use PersistentVolumeClaimSpec (not VolumeSpec)
+func (d *DisaggregatedSubDefaultController) patchPVCs(ctx context.Context, cluster client.Object, component string, selector map[string]string, pvcs []corev1.PersistentVolumeClaim, stsName, volumeName string, volume v1.PersistentVolume, replicas int32) bool {
+	prepared := true
+
+	// Handle existing PVCs (resize if needed)
+	for _, pvc := range pvcs {
+		if pvc.Spec.Resources.Requests == nil || volume.PersistentVolumeClaimSpec.Resources.Requests == nil {
+			continue
+		}
+
+		oldCapacity, oldExists := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		newCapacity, newExists := volume.PersistentVolumeClaimSpec.Resources.Requests[corev1.ResourceStorage]
+
+		if !oldExists || !newExists || oldCapacity.Equal(newCapacity) {
+			continue
+		}
+
+		// PVC needs update
+		prepared = false
+		eventType := EventNormal
+		reason := PVCUpdate
+		message := pvc.Name + " resized successfully"
+
+		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = newCapacity
+		if err := d.K8sclient.Patch(ctx, &pvc, client.Merge); err != nil {
+			klog.Errorf("%s patchPVCs: failed to resize PVC %s: %v", component, pvc.Name, err)
+			eventType = EventWarning
+			reason = PVCUpdateFailed
+			message = pvc.Name + " resize failed: " + err.Error()
+		}
+
+		d.K8srecorder.Event(cluster, string(eventType), string(reason), message)
+	}
+
+	// Create missing PVCs
+	if len(pvcs) < int(replicas) {
+		prepared = false
+		d.K8srecorder.Event(cluster, string(EventNormal), string(PVCCreate), fmt.Sprintf("creating PVCs for %s ordinals %d-%d", component, len(pvcs), replicas-1))
+	}
+
+       for baseOrdinal := len(pvcs); baseOrdinal < int(replicas); baseOrdinal++ {
+               pvc := resource.BuildDisaggregatedPVCWithVolumeName(volume.PersistentVolumeClaimSpec, selector, cluster.GetNamespace(), stsName, strconv.Itoa(baseOrdinal), volumeName)
+               pvc.OwnerReferences = []metav1.OwnerReference{resource.GetOwnerReference(cluster)}
+
+               if err := d.K8sclient.Create(ctx, &pvc); err != nil && !apierrors.IsAlreadyExists(err) {
+                       d.K8srecorder.Event(cluster, string(EventWarning), string(PVCCreateFailed), "failed to create PVC "+pvc.Name+": "+err.Error())
+                       klog.Errorf("%s patchPVCs: failed to create PVC %s: %v", component, pvc.Name, err)
+               }
+       }
+
+	return prepared
+}
+
 
 func (d *DisaggregatedSubDefaultController) GetConfigValuesFromConfigMaps(namespace string, resolveKey string, cms []v1.ConfigMap) map[string]interface{} {
 	if len(cms) == 0 {
@@ -559,36 +680,60 @@ func (d *DisaggregatedSubDefaultController) PersistentVolumeArrayBuildVolumesVol
 		pv, ok := pathPV[path]
 		name := pathName[path]
 		metadataName := strings.ReplaceAll(name, "_", "-")
-		//use specific PersistentVolume generate volume, vm, pvc
+
+		// Process volumes based on user configuration
 		if ok {
-			vs = append(vs, corev1.Volume{Name: metadataName, VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: metadataName,
-				}}})
-			vms = append(vms, corev1.VolumeMount{Name: metadataName, MountPath: path})
-			pvcs = append(pvcs, corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        metadataName,
-					Annotations: pv.Annotations,
-				},
-				Spec: *pv.PersistentVolumeClaimSpec.DeepCopy(),
-			})
+			// VolumeSpec takes precedence - routes to pod template volumes (not StatefulSet)
+			if pv.VolumeSpec != nil {
+				// Direct pod template volume: emptyDir, configMap, secret, hostPath, etc.
+				// These volumes are created directly in the pod template, not as StatefulSet volumeClaimTemplates
+				vs = append(vs, corev1.Volume{Name: metadataName, VolumeSource: *pv.VolumeSpec})
+				vms = append(vms, corev1.VolumeMount{Name: metadataName, MountPath: path})
+				// No PVC creation needed for pod template volumes
+			} else {
+				// PersistentVolumeClaimSpec - routes to StatefulSet volumeClaimTemplates
+				// Creates a PVC that will be managed by StatefulSet's volumeClaimTemplates
+				vs = append(vs, corev1.Volume{Name: metadataName, VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: metadataName,
+					}}})
+				vms = append(vms, corev1.VolumeMount{Name: metadataName, MountPath: path})
+				// This PVC will be added to StatefulSet.Spec.VolumeClaimTemplates
+				pvcs = append(pvcs, corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        metadataName,
+						Annotations: pv.Annotations,
+					},
+					Spec: *pv.PersistentVolumeClaimSpec.DeepCopy(),
+				})
+			}
 		}
 
-		//use template PersistentVolume generate volume, vm, pvc
+		// Template volume processing (for volumes without explicit mountPaths)
 		if !ok && ti != -1 {
-			vs = append(vs, corev1.Volume{Name: metadataName, VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: metadataName,
-				}}})
-			vms = append(vms, corev1.VolumeMount{Name: metadataName, MountPath: path})
-			pvcs = append(pvcs, corev1.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        metadataName,
-					Annotations: commonSpec.PersistentVolumes[ti].Annotations,
-				},
-				Spec: *commonSpec.PersistentVolumes[ti].PersistentVolumeClaimSpec.DeepCopy(),
-			})
+			templatePV := commonSpec.PersistentVolumes[ti]
+			// Template volumes can also specify VolumeSpec for pod template volumes
+			if templatePV.VolumeSpec != nil {
+				// Template with VolumeSpec - creates pod template volume
+				vs = append(vs, corev1.Volume{Name: metadataName, VolumeSource: *templatePV.VolumeSpec})
+				vms = append(vms, corev1.VolumeMount{Name: metadataName, MountPath: path})
+				// Template volumes don't create PVCs
+			} else {
+				// Template with PersistentVolumeClaimSpec - creates StatefulSet volumeClaimTemplate
+				vs = append(vs, corev1.Volume{Name: metadataName, VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: metadataName,
+					}}})
+				vms = append(vms, corev1.VolumeMount{Name: metadataName, MountPath: path})
+				// Template PVC becomes StatefulSet volumeClaimTemplate
+				pvcs = append(pvcs, corev1.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        metadataName,
+						Annotations: templatePV.Annotations,
+					},
+					Spec: *templatePV.PersistentVolumeClaimSpec.DeepCopy(),
+				})
+			}
 		}
 	}
 
