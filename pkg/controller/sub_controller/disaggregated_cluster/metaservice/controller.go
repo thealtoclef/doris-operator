@@ -21,7 +21,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apache/doris-operator/api/disaggregated/v1"
+	"strconv"
+	"strings"
+
+	v1 "github.com/apache/doris-operator/api/disaggregated/v1"
 	"github.com/apache/doris-operator/pkg/common/utils/k8s"
 	"github.com/apache/doris-operator/pkg/common/utils/resource"
 	sc "github.com/apache/doris-operator/pkg/controller/sub_controller"
@@ -32,8 +35,6 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strconv"
-	"strings"
 )
 
 type DisaggregatedMSController struct {
@@ -161,6 +162,21 @@ func (dms *DisaggregatedMSController) Sync(ctx context.Context, obj client.Objec
 	svc := dms.newService(ddc, confMap)
 
 	st := dms.newStatefulset(ddc, confMap)
+
+	// Prepare operator-managed PVCs using StatefulSet's volumeClaimTemplates
+	// This ensures we use the exact same naming logic as the StatefulSet
+	// Only prepare PVCs if the StatefulSet has volumeClaimTemplates
+	if len(st.Spec.VolumeClaimTemplates) > 0 {
+		replicas := v1.DefaultMetaserviceNumber
+		if msSpec.Replicas != nil {
+			replicas = *msSpec.Replicas
+		}
+		if !dms.PreparePersistentVolumeClaims(ctx, ddc, "ms", st, dms.newMSPodsSelector(ddc.Name), replicas) {
+			klog.Infof("dms Sync: PVCs not ready yet, will requeue")
+			return fmt.Errorf("PVCs not ready, requeuing")
+		}
+	}
+
 	dms.initMSStatus(ddc)
 
 	dms.CheckSecretMountPath(ddc, ddc.Spec.MetaService.Secrets)
@@ -202,6 +218,8 @@ func (dms *DisaggregatedMSController) reconcileStatefulset(ctx context.Context, 
 	}
 
 	if err := k8s.ApplyStatefulSet(ctx, dms.K8sclient, st, func(st, est *appv1.StatefulSet) bool {
+		// Preserve volumeClaimTemplates from existing StatefulSet (immutable field)
+		dms.RestrictConditionsEqual(st, est)
 		//store annotations "doris.disaggregated.cluster/generation={generation}" on statefulset
 		//store annotations "doris.disaggregated.cluster/update-{uniqueid}=true/false" on DorisDisaggregatedCluster
 		equal := resource.StatefulsetDeepEqualWithKey(st, est, v1.DisaggregatedSpecHashValueAnnotation, false)

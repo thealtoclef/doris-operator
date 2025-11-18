@@ -18,6 +18,9 @@
 package resource
 
 import (
+	"strings"
+
+	disaggregatedv1 "github.com/apache/doris-operator/api/disaggregated/v1"
 	dorisv1 "github.com/apache/doris-operator/api/doris/v1"
 	"github.com/apache/doris-operator/pkg/common/utils/doris"
 	"github.com/apache/doris-operator/pkg/common/utils/hash"
@@ -25,7 +28,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
-	"strings"
 )
 
 var (
@@ -83,6 +85,53 @@ func getDefaultDorisHome(componentType dorisv1.ComponentType) string {
 		klog.Infof("the componentType: %s have not default DORIS_HOME", componentType)
 	}
 	return ""
+}
+
+// BuildDisaggregatedPVCName builds PVC name for disaggregated cluster following StatefulSet naming pattern
+func BuildDisaggregatedPVCName(stsName, ordinal, volumeName string) string {
+	pvcName := stsName + "-" + ordinal
+	if volumeName != "" {
+		pvcName = volumeName + "-" + pvcName
+	}
+	return pvcName
+}
+
+
+// BuildDisaggregatedPVCWithVolumeName builds PVC for disaggregated cluster using a known volume name
+// This is used by operator-managed PVC logic where volume names come from StatefulSet volumeClaimTemplates
+func BuildDisaggregatedPVCWithVolumeName(volumeSpec corev1.PersistentVolumeClaimSpec, labels map[string]string, namespace, stsName, ordinal, volumeName string) corev1.PersistentVolumeClaim {
+	// Create synthetic PersistentVolume for annotation building
+	syntheticVolume := disaggregatedv1.PersistentVolume{
+		PersistentVolumeClaimSpec: volumeSpec,
+	}
+
+	annotations := buildDisaggregatedPVCAnnotations(syntheticVolume)
+
+	pvc := corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        BuildDisaggregatedPVCName(stsName, ordinal, volumeName),
+			Namespace:   namespace,
+			Labels:      labels,
+			Annotations: annotations,
+			Finalizers:  []string{pvc_finalizer},
+		},
+		Spec: volumeSpec,
+	}
+	return pvc
+}
+
+
+// buildDisaggregatedPVCAnnotations builds annotations for disaggregated PVC
+func buildDisaggregatedPVCAnnotations(volume disaggregatedv1.PersistentVolume) Annotations {
+	annotations := Annotations{}
+	// Disaggregated clusters always use operator-managed PVCs
+	annotations.Add(pvc_manager_annotation, "operator")
+	annotations.Add(dorisv1.ComponentResourceHash, hash.HashObject(volume.PersistentVolumeClaimSpec))
+
+	if volume.Annotations != nil && len(volume.Annotations) > 0 {
+		annotations.AddAnnotation(volume.Annotations)
+	}
+	return annotations
 }
 
 // GenerateEveryoneMountPathDorisPersistentVolume is used to process the pvc template configuration in CRD.

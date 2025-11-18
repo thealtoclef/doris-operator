@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/apache/doris-operator/api/disaggregated/v1"
+	v1 "github.com/apache/doris-operator/api/disaggregated/v1"
 	"github.com/apache/doris-operator/pkg/common/utils/k8s"
 	"github.com/apache/doris-operator/pkg/common/utils/mysql"
 	"github.com/apache/doris-operator/pkg/common/utils/resource"
@@ -87,6 +87,20 @@ func (dfc *DisaggregatedFEController) Sync(ctx context.Context, obj client.Objec
 	svc := dfc.newService(ddc, confMap)
 
 	st := dfc.NewStatefulset(ddc, confMap)
+
+	// Prepare operator-managed PVCs using StatefulSet's volumeClaimTemplates
+	// This ensures we use the exact same naming logic as the StatefulSet
+	// Only prepare PVCs if the StatefulSet has volumeClaimTemplates
+	if len(st.Spec.VolumeClaimTemplates) > 0 {
+		replicas := v1.DefaultFeReplicaNumber
+		if ddc.Spec.FeSpec.Replicas != nil {
+			replicas = *ddc.Spec.FeSpec.Replicas
+		}
+		if !dfc.PreparePersistentVolumeClaims(ctx, ddc, "fe", st, dfc.newFEPodsSelector(ddc.Name), replicas) {
+			klog.Infof("dfc Sync: PVCs not ready yet, will requeue")
+			return fmt.Errorf("PVCs not ready, requeuing")
+		}
+	}
 	//initial fe status on start. in resource process step, may be use the status record the process.
 	dfc.initialFEStatus(ddc)
 
@@ -309,6 +323,8 @@ func (dfc *DisaggregatedFEController) reconcileStatefulset(ctx context.Context, 
 
 	// apply fe StatefulSet
 	if err := k8s.ApplyStatefulSet(ctx, dfc.K8sclient, st, func(st, est *appv1.StatefulSet) bool {
+		// Preserve volumeClaimTemplates from existing StatefulSet (immutable field)
+		dfc.RestrictConditionsEqual(st, est)
 		//store annotations "doris.disaggregated.cluster/generation={generation}" on statefulset
 		//store annotations "doris.disaggregated.cluster/update-{uniqueid}=true/false" on DorisDisaggregatedCluster
 		equal := resource.StatefulsetDeepEqualWithKey(st, est, v1.DisaggregatedSpecHashValueAnnotation, false)

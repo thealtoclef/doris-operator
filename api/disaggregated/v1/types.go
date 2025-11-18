@@ -234,10 +234,17 @@ type SystemInitialization struct {
 }
 
 // PersistentVolume defines volume information and container mount information.
+// +kubebuilder:validation:XValidation:rule="!(has(self.persistentVolumeClaimSpec) && has(self.volumeSpec))",message="persistentVolumeClaimSpec and volumeSpec cannot be set at the same time"
+// +kubebuilder:validation:XValidation:rule="(has(self.persistentVolumeClaimSpec) || has(self.volumeSpec))",message="either persistentVolumeClaimSpec or volumeSpec must be set"
 type PersistentVolume struct {
 	// PersistentVolumeClaimSpec is a list of claim spec about storage that pods are required.
 	// +kubebuilder:validation:Optional
 	corev1.PersistentVolumeClaimSpec `json:"persistentVolumeClaimSpec,omitempty"`
+
+	// VolumeSpec allows specifying volumes that are set directly in the StatefulSet's pod template.
+	// This includes emptyDir, configMap, secret, hostPath, and other volume types.
+	// +kubebuilder:validation:Optional
+	VolumeSpec *corev1.VolumeSource `json:"volumeSpec,omitempty"`
 
 	// specify mountPaths, if not config, operator will refer from be.conf `cache_file_path`.
 	// when mountPaths=[]{"/opt/path1", "/opt/path2"}, will create two pvc mount the two paths. also, operator will mount the cache_file_path config in be.conf .

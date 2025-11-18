@@ -18,29 +18,29 @@
 package computegroups
 
 import (
-    "context"
-    "encoding/json"
-    "errors"
-    "fmt"
-    "regexp"
-    "strconv"
-    "strings"
-    "sync"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
 
-    dv1 "github.com/apache/doris-operator/api/disaggregated/v1"
-    "github.com/apache/doris-operator/pkg/common/utils"
-    "github.com/apache/doris-operator/pkg/common/utils/k8s"
-    "github.com/apache/doris-operator/pkg/common/utils/mysql"
-    "github.com/apache/doris-operator/pkg/common/utils/resource"
-    "github.com/apache/doris-operator/pkg/common/utils/set"
-    sc "github.com/apache/doris-operator/pkg/controller/sub_controller"
-    appv1 "k8s.io/api/apps/v1"
-    corev1 "k8s.io/api/core/v1"
-    apierrors "k8s.io/apimachinery/pkg/api/errors"
-    "k8s.io/apimachinery/pkg/types"
-    "k8s.io/klog/v2"
-    ctrl "sigs.k8s.io/controller-runtime"
-    "sigs.k8s.io/controller-runtime/pkg/client"
+	dv1 "github.com/apache/doris-operator/api/disaggregated/v1"
+	"github.com/apache/doris-operator/pkg/common/utils"
+	"github.com/apache/doris-operator/pkg/common/utils/k8s"
+	"github.com/apache/doris-operator/pkg/common/utils/mysql"
+	"github.com/apache/doris-operator/pkg/common/utils/resource"
+	"github.com/apache/doris-operator/pkg/common/utils/set"
+	sc "github.com/apache/doris-operator/pkg/controller/sub_controller"
+	appv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ sc.DisaggregatedSubController = &DisaggregatedComputeGroupsController{}
@@ -147,6 +147,21 @@ func (dcgs *DisaggregatedComputeGroupsController) computeGroupSync(ctx context.C
 	cvs := dcgs.GetConfigValuesFromConfigMaps(ddc.Namespace, resource.BE_RESOLVEKEY, cg.CommonSpec.ConfigMaps)
 	st := dcgs.NewStatefulset(ddc, cg, cvs)
 	svc := dcgs.newService(ddc, cg, cvs)
+
+	// Prepare operator-managed PVCs using StatefulSet's volumeClaimTemplates
+	// This ensures we use the exact same naming logic as the StatefulSet
+	// Only prepare PVCs if the StatefulSet has volumeClaimTemplates
+	if len(st.Spec.VolumeClaimTemplates) > 0 {
+		replicas := int32(1)
+		if cg.Replicas != nil {
+			replicas = *cg.Replicas
+		}
+		if !dcgs.PreparePersistentVolumeClaims(ctx, ddc, fmt.Sprintf("cg-%s", cg.UniqueId), st, dcgs.newCGPodsSelector(ddc.Name, cg.UniqueId), replicas) {
+			klog.Infof("dcgs computeGroupSync: PVCs not ready yet for ComputeGroup %s, will requeue", cg.UniqueId)
+			return nil, fmt.Errorf("PVCs not ready for ComputeGroup %s, requeuing", cg.UniqueId)
+		}
+	}
+
 	dcgs.initialCGStatus(ddc, cg)
 
 	dcgs.CheckSecretMountPath(ddc, cg.Secrets)
@@ -207,6 +222,8 @@ func (dcgs *DisaggregatedComputeGroupsController) reconcileStatefulset(ctx conte
 
 
 	if err := k8s.ApplyStatefulSet(ctx, dcgs.K8sclient, st, func(st, est *appv1.StatefulSet) bool {
+		// Preserve volumeClaimTemplates from existing StatefulSet (immutable field)
+		dcgs.RestrictConditionsEqual(st, est)
 		//store annotations "doris.disaggregated.cluster/generation={generation}" on statefulset
 		//store annotations "doris.disaggregated.cluster/update-{uniqueid}=true/false" on DorisDisaggregatedCluster
 		equal := resource.StatefulsetDeepEqualWithKey(st, est, dv1.DisaggregatedSpecHashValueAnnotation, false)
