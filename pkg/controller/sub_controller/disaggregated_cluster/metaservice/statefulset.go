@@ -94,7 +94,10 @@ func (dms *DisaggregatedMSController) NewPodTemplateSpec(ddc *v1.DorisDisaggrega
 	configVolumes, _ := dms.BuildDefaultConfigMapVolumesVolumeMounts(ddc.Spec.MetaService.ConfigMaps)
 	pts.Spec.Volumes = append(pts.Spec.Volumes, vs...)
 	pts.Spec.Volumes = append(pts.Spec.Volumes, configVolumes...)
-	pts.Spec.Affinity = dms.ConstructDefaultAffinity(v1.DorisDisaggregatedClusterName, selector[v1.DorisDisaggregatedClusterName], ddc.Spec.MetaService.Affinity)
+	pts.Spec.Affinity = dms.ConstructDefaultAffinity(map[string]string{
+		v1.DorisDisaggregatedClusterName: selector[v1.DorisDisaggregatedClusterName],
+		v1.DorisDisaggregatedPodType:     selector[v1.DorisDisaggregatedPodType],
+	}, ddc.Spec.MetaService.Affinity)
 
 	if len(ddc.Spec.MetaService.Secrets) != 0 {
 		secretVolumes, _ := resource.GetMultiSecretVolumeAndVolumeMountWithCommonSpec(&ddc.Spec.MetaService.CommonSpec)

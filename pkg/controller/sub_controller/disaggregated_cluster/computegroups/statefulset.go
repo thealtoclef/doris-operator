@@ -117,8 +117,10 @@ func (dcgs *DisaggregatedComputeGroupsController) NewPodTemplateSpec(ddc *dv1.Do
 
 	//add last supplementary spec. if add new config in ddc spec and the config need add in pod, use the follow function to add.
 	dcgs.DisaggregatedSubDefaultController.AddClusterSpecForPodTemplate(dv1.DisaggregatedBE, cvs, &ddc.Spec, &pts)
-	cgUniqueId := selector[dv1.DorisDisaggregatedComputeGroupUniqueId]
-	pts.Spec.Affinity = dcgs.ConstructDefaultAffinity(dv1.DorisDisaggregatedComputeGroupUniqueId, cgUniqueId, pts.Spec.Affinity)
+	pts.Spec.Affinity = dcgs.ConstructDefaultAffinity(map[string]string{
+		dv1.DorisDisaggregatedClusterName:          selector[dv1.DorisDisaggregatedClusterName],
+		dv1.DorisDisaggregatedComputeGroupUniqueId: selector[dv1.DorisDisaggregatedComputeGroupUniqueId],
+	}, pts.Spec.Affinity)
 
 	return pts
 }

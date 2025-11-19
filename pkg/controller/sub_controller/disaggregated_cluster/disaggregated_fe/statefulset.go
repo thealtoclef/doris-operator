@@ -116,7 +116,10 @@ func (dfc *DisaggregatedFEController) NewPodTemplateSpec(ddc *v1.DorisDisaggrega
 		pts.Spec.Volumes = append(pts.Spec.Volumes, secretVolumes...)
 	}
 
-	pts.Spec.Affinity = dfc.ConstructDefaultAffinity(v1.DorisDisaggregatedClusterName, labels[v1.DorisDisaggregatedClusterName], ddc.Spec.FeSpec.Affinity)
+	pts.Spec.Affinity = dfc.ConstructDefaultAffinity(map[string]string{
+		v1.DorisDisaggregatedClusterName: labels[v1.DorisDisaggregatedClusterName],
+		v1.DorisDisaggregatedPodType:     labels[v1.DorisDisaggregatedPodType],
+	}, ddc.Spec.FeSpec.Affinity)
 
 	return pts
 }
