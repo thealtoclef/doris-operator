@@ -189,8 +189,8 @@ func (d *DisaggregatedSubDefaultController) BuildDefaultConfigMapVolumesVolumeMo
 	return vs, vms
 }
 
-func (d *DisaggregatedSubDefaultController) ConstructDefaultAffinity(matchKey, value string, ddcAffinity *corev1.Affinity) *corev1.Affinity {
-	affinity := d.newDefaultAffinity(matchKey, value)
+func (d *DisaggregatedSubDefaultController) ConstructDefaultAffinity(matchLabels map[string]string, ddcAffinity *corev1.Affinity) *corev1.Affinity {
+	affinity := d.newDefaultAffinity(matchLabels)
 
 	if ddcAffinity == nil {
 		return affinity
@@ -208,8 +208,8 @@ func (d *DisaggregatedSubDefaultController) ConstructDefaultAffinity(matchKey, v
 	return affinity
 }
 
-func (d *DisaggregatedSubDefaultController) newDefaultAffinity(matchKey, value string) *corev1.Affinity {
-	if matchKey == "" || value == "" {
+func (d *DisaggregatedSubDefaultController) newDefaultAffinity(matchLabels map[string]string) *corev1.Affinity {
+	if len(matchLabels) == 0 {
 		return nil
 	}
 
@@ -217,9 +217,7 @@ func (d *DisaggregatedSubDefaultController) newDefaultAffinity(matchKey, value s
 		Weight: 20,
 		PodAffinityTerm: corev1.PodAffinityTerm{
 			LabelSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{Key: matchKey, Operator: metav1.LabelSelectorOpIn, Values: []string{value}},
-				},
+				MatchLabels: matchLabels,
 			},
 			TopologyKey: resource.NODE_TOPOLOGYKEY,
 		},
